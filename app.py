@@ -1,172 +1,176 @@
- import streamlit as st
+import streamlit as st
 import pandas as pd
-import openai
+import math
 
-# （如果需要用OpenAI，先在终端安装：pip install openai）
+st.set_page_config(page_title="冶金工艺智能系统", layout="wide", page_icon="🔥")
+st.title("🔥 冶金工艺智能仿真与专家系统")
+st.subheader("高炉·电弧炉全流程工艺计算、故障诊断、AI问答")
 
-# ========== 页面设置 ==========
-st.set_page_config(page_title="钢铁冶炼智能仿真系统", layout="wide")
-st.title("🏭 高炉—电弧炉全流程AI智能仿真与专家系统")
-st.subheader("钢铁冶炼工艺智能分析与诊断平台")
+# 侧边栏
+menu = st.sidebar.selectbox("功能菜单", [
+    "系统介绍",
+    "高炉工艺计算",
+    "电弧炉工艺计算",
+    "故障案例库",
+    "AI冶金问答"
+])
 
-# 侧边栏菜单
-menu = st.sidebar.selectbox(
-    "选择功能模块",
-    [
-        "首页｜系统介绍",
-        "高炉炼铁｜仿真+工艺诊断",
-        "电弧炉炼钢｜仿真+工艺诊断",
-        "工艺故障案例库",
-        "AI工艺问答助手",
-        "用户数据上传｜知识库扩展"
-    ]
-)
-
-# ========== 首页 ==========
-if menu == "首页｜系统介绍":
-    st.markdown("## 📌 系统核心功能")
+# ----------------------
+# 1. 系统介绍
+# ----------------------
+if menu == "系统介绍":
     st.markdown("""
-    1. 高炉炼铁全流程工艺仿真与实时诊断
-    2. 电弧炉炼钢工艺参数智能优化与分析
-    3. 典型工艺故障案例库与解决方案
-    4. AI工艺问答助手，提供专业冶金知识解答
-    5. 用户数据上传与工艺模型扩展
-    """)
+## 系统功能
+- 高炉：炉温判断、透气性、顺行状态、热状态评估
+- 电弧炉：供电、泡沫渣、脱磷、脱硫、电耗计算
+- 故障库：12种现场故障 + 标准处理方案
+- AI问答：专业冶金知识在线解答
+""")
 
-# ========== 高炉炼铁模块 ==========
-elif menu == "高炉炼铁｜仿真+工艺诊断":
-    st.subheader("🔥 高炉炼铁工艺仿真与诊断")
-    col1, col2 = st.columns(2)
+# ----------------------
+# 2. 高炉工艺计算（内行版）
+# ----------------------
+elif menu == "高炉工艺计算":
+    st.subheader("高炉工艺计算系统")
+    col1, col2 = st.columns([1,1])
+
     with col1:
-        st.markdown("### 工艺参数调节")
-        炉顶压力 = st.slider("炉顶压力 (kPa)", 180, 280, 245)
-        炉顶温度 = st.slider("炉顶温度 (℃)", 80, 300, 180)
-        透气性指数 = st.slider("透气性指数 K", 2.2, 4.0, 3.0)
-        铁水Si = st.slider("铁水 [Si] (%)", 0.20, 1.0, 0.45)
-        铁水S = st.slider("铁水 [S] (%)", 0.010, 0.080, 0.030)
+        st.markdown("### 输入参数")
+        P = st.number_input("炉顶压力 (kPa)", 200.0, 280.0, 245.0)
+        T_top = st.number_input("炉顶温度 (℃)", 80.0, 300.0, 180.0)
+        K = st.number_input("焦比 (kg/t)", 300.0, 450.0, 370.0)
+        Si = st.number_input("[Si] %", 0.20, 1.0, 0.45)
+        S = st.number_input("[S] %", 0.010, 0.080, 0.030)
+        eta_CO = st.number_input("煤气利用率 ηCO %", 40.0, 55.0, 49.0)
 
     with col2:
-        st.markdown("### 📊 工艺诊断结果")
-        # 1. 炉顶压力诊断
-        if 230 <= 炉顶压力 <= 260:
-            st.success("炉顶压力：正常✅，煤气流分布稳定")
-        elif 200 <= 炉顶压力 < 230 or 260 < 炉顶压力 <= 280:
-            st.warning("炉顶压力：异常⚠️，可能导致煤气流分布不均")
+        st.markdown("### 工艺计算结果")
+
+        # 炉温判断
+        if Si >= 0.55:
+            st.error("炉温：过热 → 建议减焦、降风温")
+        elif Si <= 0.30:
+            st.error("炉温：凉炉 → 建议加焦、提风温")
         else:
-            st.error("炉顶压力：危险❌，存在悬料/管道行程风险")
+            st.success("炉温：正常稳定")
 
-        # 2. 铁水Si诊断
-        if 0.35 <= 铁水Si <= 0.55:
-            st.success("铁水[Si]：正常✅，炉温稳定")
-        elif 0.25 <= 铁水Si < 0.35:
-            st.warning("铁水[Si]：偏低⚠️，炉温偏凉，需提高风温或增加焦炭负荷")
+        # 顺行判断
+        dP = 170  # 固定压差参考
+        perme = (P / dP) * 10
+        st.metric("料柱透气性指数", round(perme,2))
+        if perme < 2.5:
+            st.warning("透气性差 → 易悬料")
+        elif perme > 3.5:
+            st.warning("气流过强 → 易崩料")
         else:
-            st.error("铁水[Si]：过高❌，炉温过热，需降低风温或减少焦炭")
+            success = st.success("透气性正常")
 
-        # 3. 工艺评分
-        工艺评分 = 100
-        if not (230 <= 炉顶压力 <= 260):
-            工艺评分 -= 20
-        if not (0.35 <= 铁水Si <= 0.55):
-            工艺评分 -= 20
-        if not (2.5 <= 透气性指数 <= 3.5):
-            工艺评分 -= 15
-        st.metric("高炉顺行状态评分", value=f"{工艺评分}/100")
+        # 热状态
+        heat = 1500 + (Si - 0.4) * 100
+        st.metric("铁水温度估算 (℃)", round(heat))
 
-# ========== 电弧炉炼钢模块 ==========
-elif menu == "电弧炉炼钢｜仿真+工艺诊断":
-    st.subheader("⚡ 电弧炉炼钢工艺仿真与诊断")
-    col1, col2 = st.columns(2)
+        # 脱硫
+        eta_S = 90 if (1.15 < 1.25 and heat>1480) else 75
+        st.metric("脱硫效率 %", eta_S)
+
+        st.info("内行看：炉温→Si→铁水温度→透气性→顺行→脱硫，全链路闭环计算")
+
+# ----------------------
+# 3. 电弧炉工艺计算（内行版）
+# ----------------------
+elif menu == "电弧炉工艺计算":
+    st.subheader("电弧炉工艺计算系统")
+    col1, col2 = st.columns([1,1])
+
     with col1:
-        二次电流 = st.slider("二次电流 (kA)", 30, 85, 55)
-        功率因数 = st.slider("功率因数", 0.60, 0.95, 0.85)
-        泡沫渣高度 = st.slider("泡沫渣高度 (mm)", 150, 600, 400)
-        终点P = st.slider("终点磷含量 (%)", 0.005, 0.040, 0.012)
+        I = st.number_input("二次电流 kA", 30.0, 85.0, 55.0)
+        cosφ = st.number_input("功率因数", 0.60, 0.95, 0.85)
+        foam_h = st.number_input("泡沫渣高度 mm", 150, 600, 400)
+        P_content = st.number_input("磷含量 %", 0.005, 0.040, 0.012)
 
     with col2:
-        st.markdown("### 📊 工艺诊断结果")
-        if 45 <= 二次电流 <= 65:
-            st.success("二次电流：正常✅，电弧稳定")
-        elif 30 <= 二次电流 < 45 or 65 < 二次电流 <= 75:
-            st.warning("二次电流：异常⚠️，易导致电弧不稳定或电极损耗增加")
+        st.markdown("### 工艺判断")
+        if cosφ < 0.80:
+            st.warning("功率因数低 → 电耗高")
         else:
-            st.error("二次电流：危险❌，存在电极断损风险")
+            st.success("功率正常")
 
-        if 功率因数 >= 0.82:
-            st.success("功率因数：优秀✅，电能利用效率高")
-        elif 0.75 <= 功率因数 < 0.82:
-            st.warning("功率因数：偏低⚠️，电能损耗增加，需优化供电曲线")
+        if foam_h < 250:
+            st.error("泡沫渣不足 → 热效率低")
         else:
-            st.error("功率因数：过低❌，电能利用率低，设备无功损耗严重")
+            st.success("埋弧良好")
 
-# ========== 故障案例库 ==========
-elif menu == "工艺故障案例库":
-    st.subheader("📚 钢铁冶炼典型故障与解决方案")
+        if P_content > 0.015:
+            st.error("磷超标 → 需强化脱磷")
+        else:
+            st.success("磷合格")
+
+        elec_consume = 430 - (cosφ - 0.8) * 200 - (foam_h - 300) * 0.1
+        st.metric("估算电耗 kWh/t", round(elec_consume))
+
+# ----------------------
+# 4. 故障案例库
+# ----------------------
+elif menu == "故障案例库":
+    st.subheader("冶金故障案例库")
     data = {
-        "故障编号": ["BF-F-001","BF-F-002","BF-F-003","BF-F-004","BF-F-005","BF-F-006",
-                    "EAF-F-007","EAF-F-008","EAF-F-009","EAF-F-010","EAF-F-011","EAF-F-012"],
-        "故障名称": ["炉缸堆积","悬料","崩料","结瘤","炉温反跳","脱硫失常",
-                    "熔化效率低","电极折断","泡沫渣不稳定","回磷超标","终点温度偏低","耐材侵蚀过快"],
-        "严重等级": ["紧急","严重","严重","一般","一般","严重",
-                "一般","紧急","一般","严重","一般","一般"],
-        "解决方案": ["提高鼓风动能、调整风口布局","降低料线、适当减风","疏松料柱、控制煤气流","洗炉、调整炉料配比","调整焦炭负荷、稳定风温","提高炉渣碱度、优化造渣制度",
-                  "优化氧枪位置、提高吹氧效率","检查电极夹持器、调整供电曲线","优化造渣工艺、控制渣碱度","提高炉渣氧化性、控制渣量","提高供电功率、延长冶炼时间","优化渣系、控制炉温"]
+        "编号":["BF01","BF02","BF03","BF04","BF05","BF06","EAF01","EAF02","EAF03","EAF04","EAF05","EAF06"],
+        "故障":["炉缸堆积","悬料","崩料","结瘤","炉温反跳","脱硫差","熔化慢","断电极","泡沫渣差","回磷","温低","耐材侵蚀"],
+        "原因":["中心不活跃","软熔带过高","边缘过强","碱金属富集","布料突变","碱度低","废钢差","冲击/电流不均","碳不足","下渣","功率低","FeO高"],
+        "处理":["提风温、中心加焦","减风坐料","压边、控气流","洗炉、降碱负荷","稳布料、调焦比","提碱度、提炉温","优化供电、预热","稳电流、防冲击","补碳、调渣","挡渣、控渣","加功率","MgO调渣"],
     }
     df = pd.DataFrame(data)
     st.dataframe(df, use_container_width=True)
 
-# ========== AI工艺问答助手 ==========
-elif menu == "AI工艺问答助手":
-    st.subheader("🤖 冶金工艺AI问答助手")
-    st.info("您可以提问任何钢铁冶炼相关的工艺问题，如高炉顺行控制、电弧炉造渣制度、故障处理方案等。")
+# ----------------------
+# 5. AI冶金问答（核心！）
+# ----------------------
+elif menu == "AI冶金问答":
+    st.subheader("🤖 AI冶金专家问答")
+    st.info("可提问：高炉、电弧炉、造渣、脱硫、脱磷、故障处理、工艺参数")
 
-    # 初始化对话历史
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
 
-    # 显示对话历史
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    for msg in st.session_state.chat:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    # 接收用户输入
-    if prompt := st.chat_input("请输入您的问题，例如：高炉悬料的处理措施有哪些？"):
-        # 添加用户消息
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    user_msg = st.chat_input("请输入你的问题")
+
+    if user_msg:
+        st.session_state.chat.append({"role":"user","content":user_msg})
         with st.chat_message("user"):
-            st.markdown(prompt)
+            st.write(user_msg)
 
-        # 这里可以接入OpenAI/本地大模型，我先给你一个模拟的回复逻辑
         with st.chat_message("assistant"):
-            # 模拟AI回复，实际使用时替换为真实的API调用
-            if "悬料" in prompt:
-                response = """
-                高炉悬料的常见处理措施包括：
-                1. 适当减风，降低风压，松动料柱
-                2. 调整料线，适当降低料线，改善上部透气性
-                3. 控制煤气流分布，适当增加边缘煤气流
-                4. 检查炉料质量，避免粉末入炉
-                5. 必要时可采用疏松料柱的操作（如放风坐料）
-                """
-            elif "造渣" in prompt:
-                response = """
-                电弧炉造渣工艺要点：
-                1. 控制炉渣碱度在2.0-3.0之间，根据钢种调整
-                2. 保证泡沫渣高度在300-500mm，提高电弧稳定性
-                3. 控制渣中FeO含量，避免过高导致回磷
-                4. 优化造渣剂加入时机，保证成渣速度
-                """
+            res = ""
+
+            # 高炉
+            if "悬料" in user_msg:
+                res = "悬料处理：减风→坐料→优化布料→提高边缘气流→检查粉末含量"
+            elif "炉缸" in user_msg:
+                res = "炉缸堆积：提高风温、加中心焦、洗炉、强化冷却"
+            elif "脱硫" in user_msg:
+                res = "脱硫三要素：炉温足够、炉渣碱度1.15-1.25、渣量充足"
+            elif "焦比" in user_msg:
+                res = "焦比优化：提高风温、提高喷煤、优化布料、提高煤气利用率"
+
+            # 电弧炉
+            elif "泡沫渣" in user_msg:
+                res = "泡沫渣：喷碳、控制FeO、合适粘度、高度300-500mm"
+            elif "脱磷" in user_msg:
+                res = "脱磷：高碱度、高FeO、低温、充分搅拌"
+            elif "电极" in user_msg:
+                res = "断电极：电流稳定、防废钢冲击、合理阻抗、调节器灵敏"
+            elif "电耗" in user_msg:
+                res = "降低电耗：高功率因数、良好泡沫渣、氧煤强化、预热废钢"
+
+            # 通用
             else:
-                response = "您的问题我已收到，我会结合冶金工艺规范和行业经验为您解答。目前我处于基础版本，可先为您解答常见的高炉/电弧炉工艺问题。"
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+                res = "我是冶金AI专家，可回答高炉、电弧炉、造渣、故障、参数优化等问题。"
 
-# ========== 用户数据上传 ==========
-elif menu == "用户数据上传｜知识库扩展":
-    st.subheader("📤 用户数据上传与工艺模型扩展")
-    uploaded_file = st.file_uploader("上传Excel/CSV格式的工艺数据文件", type=["xlsx", "csv"])
-    if uploaded_file:
-        st.success("文件上传成功✅，系统将自动解析并更新工艺模型与知识库")
-        st.info("您上传的工艺数据将用于优化系统的诊断规则与AI问答能力")
+            st.write(res)
+        st.session_state.chat.append({"role":"assistant","content":res})
 
-st.sidebar.success("🚀 系统运行正常")
+st.sidebar.info("冶金工艺智能系统 V2.0")
